@@ -1,0 +1,206 @@
+config {
+  type: "incremental",
+  schema: "monitoramento_apis",
+  name: "viagem_validacao",
+  tags: ["monitoramento_viagem"],
+  bigquery: {
+    partitionBy: {
+        field: "data",
+        granularity: "day"
+   },
+  },
+  uniqueKey: ["id_viagem"]
+}
+
+pre_operations {
+  DECLARE gtfs_feeds ARRAY<DATE>;
+
+  SET gtfs_feeds = (
+    SELECT ARRAY_AGG(feed_start_date)
+    FROM (
+      SELECT DISTINCT feed_start_date
+      FROM ${ref("planejamento", "calendario")}
+      ${when(
+        incremental(),
+        `WHERE data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`
+      )}
+    )
+  );
+
+}
+
+with
+    contagem as (
+        select
+            data,
+            id_viagem,
+            datetime_partida,
+            datetime_chegada,
+            modo,
+            id_veiculo,
+            trip_id,
+            route_id,
+            shape_id,
+            servico,
+            sentido,
+            countif(id_segmento is not null) as quantidade_segmentos_verificados,
+            countif(quantidade_gps > 0) as quantidade_segmentos_validos,
+            max(indicador_servico_divergente) as indicador_servico_divergente,
+            max(id_segmento is null) as indicador_shape_invalido,
+            service_ids,
+            tipo_dia,
+            feed_version,
+            feed_start_date
+        from ${ref("gps_segmento_viagem")}
+        where
+            (
+                not indicador_segmento_desconsiderado
+                or indicador_segmento_desconsiderado is null
+            )
+            ${when(
+                incremental(),
+                `AND data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`
+            )}
+        group by
+            data,
+            id_viagem,
+            datetime_partida,
+            datetime_chegada,
+            modo,
+            id_veiculo,
+            trip_id,
+            route_id,
+            shape_id,
+            servico,
+            sentido,
+            service_ids,
+            tipo_dia,
+            feed_version,
+            feed_start_date
+    ),
+    indice as (
+        select
+            data,
+            id_viagem,
+            datetime_partida,
+            datetime_chegada,
+            modo,
+            id_veiculo,
+            trip_id,
+            route_id,
+            shape_id,
+            servico,
+            sentido,
+            quantidade_segmentos_verificados,
+            quantidade_segmentos_validos,
+            safe_divide(
+                quantidade_segmentos_validos, quantidade_segmentos_verificados
+            ) as indice_validacao,
+            indicador_servico_divergente,
+            indicador_shape_invalido,
+            service_ids,
+            tipo_dia,
+            feed_version,
+            feed_start_date
+        from contagem
+    ),
+    trips as (
+        select distinct
+            feed_start_date,
+            feed_version,
+            route_id,
+            array_agg(service_id) as service_ids,
+        from ${ref("trips")}
+        ${when(
+            incremental(),
+            `where feed_start_date in UNNEST(gtfs_feeds)`
+        )}
+        group by 1, 2, 3
+    ),
+    servicos_planejados_gtfs as (
+        select
+            i.*,
+            (
+                select count(*)
+                from unnest(i.service_ids) as service_id
+                join unnest(t.service_ids) as service_id using (service_id)
+            )
+            > 0 as indicador_servico_planejado_gtfs
+        from indice i
+        left join trips t using (feed_start_date, feed_version, route_id)
+    ),
+    viagem_planejada as (
+        select *
+        from ${ref("viagem_planejada")}
+        ${when(
+            incremental(),
+            `WHERE data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`
+        )}
+        qualify
+            row_number() over (
+                partition by data, servico, sentido, faixa_horaria_inicio
+                order by distancia_planejada desc
+            )
+            = 1
+    ),
+    servicos_planejados_os as (
+        select
+            sp.*,
+            case
+                when
+                    vp.distancia_total_planejada is not null
+                    and vp.distancia_total_planejada > 0
+                then true
+                when
+                    (
+                        vp.distancia_total_planejada is not null
+                        and vp.distancia_total_planejada <= 0
+                    )
+                    or (
+                        vp.distancia_total_planejada is null and sp.modo = "Ônibus SPPO"
+                    )
+                then false
+            end as indicador_servico_planejado_os
+        from servicos_planejados_gtfs sp
+        left join
+            viagem_planejada vp
+            on vp.servico = sp.servico
+            and vp.sentido = sp.sentido
+            and vp.data = sp.data
+            and sp.datetime_partida between faixa_horaria_inicio and faixa_horaria_fim
+    )
+select
+    data,
+    id_viagem,
+    datetime_partida,
+    datetime_chegada,
+    modo,
+    id_veiculo,
+    trip_id,
+    route_id,
+    shape_id,
+    servico,
+    sentido,
+    quantidade_segmentos_verificados,
+    quantidade_segmentos_validos,
+    indice_validacao,
+    indice_validacao >= ${constants.parametro_validacao} as indicador_trajeto_valido,
+    indicador_servico_planejado_gtfs,
+    indicador_servico_planejado_os,
+    indicador_servico_divergente,
+    indicador_shape_invalido,
+    (
+        shape_id is not null
+        and route_id is not null
+        and not indicador_shape_invalido
+        and indice_validacao >= ${constants.parametro_validacao}
+        and indicador_servico_planejado_gtfs
+        and ifnull(indicador_servico_planejado_os, true)
+    ) as indicador_viagem_valida,
+    ${constants.parametro_validacao} as parametro_validacao,
+    tipo_dia,
+    feed_version,
+    feed_start_date,
+    ${constants.versao} as versao,
+    current_datetime("America/Sao_Paulo") as datetime_ultima_atualizacao
+from servicos_planejados_os
