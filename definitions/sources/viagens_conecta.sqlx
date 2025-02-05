@@ -1,0 +1,7 @@
+config {
+  type: "declaration",
+  database: "ro-areatecnica",
+  schema: "conecta_raw",
+  name: "sppo_viagens_conecta",
+  description: ""
+}

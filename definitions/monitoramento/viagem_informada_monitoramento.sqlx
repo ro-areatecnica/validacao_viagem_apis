@@ -1,0 +1,147 @@
+config {
+  type: "incremental",
+  schema: "monitoramento_apis",
+  name: "viagem_informada",
+  tags: ["monitoramento_viagem"],
+  bigquery: {
+    partitionBy: {
+        field: "data",
+        granularity: "day"
+   },
+  },
+  uniqueKey: ["id_viagem"]
+}
+
+pre_operations {
+  DECLARE gtfs_feeds ARRAY<DATE>;
+
+  SET gtfs_feeds = (
+    SELECT ARRAY_AGG(feed_start_date)
+    FROM (
+      SELECT DISTINCT feed_start_date
+      FROM ${ref("planejamento", "calendario")}
+      ${when(
+        incremental(),
+        `WHERE data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`
+      )}
+    )
+  );
+
+}
+
+with
+  staging_rioonibus as (
+    select
+        data_viagem as data,
+        id_viagem,
+        datetime_partida,
+        datetime_chegada,
+        id_veiculo,
+        trip_id,
+        route_id,
+        shape_id,
+        servico,
+        sentido,
+        fornecedor as fonte_gps,
+        datetime_processamento,
+        datetime_captura
+    from ${ref("staging_viagem_informada_rioonibus")}
+    ${when(
+      incremental(),
+      `where data_viagem between date(${constants.date_range_start}) and date(${constants.date_range_end})
+       and data_viagem >= (SELECT MAX(data) FROM ${self()})`
+    )}
+  ),
+  staging as (
+    select
+        data,
+        id_viagem,
+        datetime_partida,
+        datetime_chegada,
+        id_veiculo,
+        trip_id,
+        route_id,
+        shape_id,
+        servico,
+        sentido,
+        fonte_gps,
+        datetime_processamento,
+        datetime_captura
+    from staging_rioonibus
+  ),
+  complete_partitions as (
+    select *, 0 as priority
+    from staging
+
+    ${when(
+      incremental() && constants.partitions.length > 0,
+      `
+        union all
+        select *, 1 as priority
+        from ${self()}
+        where data in (SELECT DISTINCT data FROM staging_union)
+      `
+    )}
+  ),
+  deduplicado as (
+    select * except (rn, priority)
+    from
+        (
+            select
+                *,
+                row_number() over (
+                    partition by id_viagem order by datetime_captura desc, priority
+                ) as rn
+            from complete_partitions
+        )
+    where rn = 1
+  ),
+  calendario as (
+    select *
+    from ${ref("calendario")}
+    ${when(
+      incremental(),
+      `where data in (SELECT DISTINCT data FROM staging)`
+    )}
+  ),
+  routes as (
+    select *
+    from ${ref("gtfs", "routes")}
+    ${when(
+        incremental(),
+        `WHERE feed_start_date IN UNNEST(gtfs_feeds)`
+    )}
+  ),
+  viagem_modo as (
+    select
+        data,
+        v.id_viagem,
+        v.datetime_partida,
+        v.datetime_chegada,
+        case
+            when v.fonte_gps = 'brt'
+            then 'BRT'
+            when r.route_type = '200'
+            then 'Ônibus Executivo'
+            when r.route_type = '700'
+            then 'Ônibus SPPO'
+        end as modo,
+        if(trim(v.id_veiculo) = '', null, v.id_veiculo) as id_veiculo,
+        if(trim(v.trip_id) = '', null, v.trip_id) as trip_id,
+        if(trim(v.route_id) = '', null, v.route_id) as route_id,
+        if(trim(v.shape_id) = '', null, v.shape_id) as shape_id,
+        if(trim(v.servico) = '', null, v.servico) as servico,
+        if(trim(v.sentido) = '', null, v.sentido) as sentido,
+        if(trim(v.fonte_gps) = '', null, v.fonte_gps) as fonte_gps,
+        v.datetime_processamento,
+        v.datetime_captura
+    from deduplicado v
+    join calendario c using (data)
+    left join routes r using (route_id, feed_start_date, feed_version)
+ )
+select
+*,
+${constants.versao} as versao,
+current_datetime("America/Sao_Paulo") as datetime_ultima_atualizacao
+from viagem_modo
+
