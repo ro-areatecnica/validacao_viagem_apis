@@ -5,7 +5,7 @@ const comprimento_minimo_segmento_shape = 990;
 const partitions = [];
 const parametro_validacao = 0.9;
 const qtd_dia = 2;
-const data_inicial_gps_validacao_viagem = new Date("2025-01-05");
+const data_inicial_gps_validacao_viagem = new Date();
 const agora = new Date();
 agora.setHours(agora.getUTCHours() - 3); // Ajuste manual para UTC-3
 const hora_atual = `'${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}:${String(agora.getSeconds()).padStart(2, '0')}'`;

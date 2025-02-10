@@ -1,5 +1,6 @@
 config {
   type: "incremental",
+  uniqueKey: ["id_viagem"],
   schema: "monitoramento_apis",
   name: "viagem_validacao",
   tags: ["monitoramento_viagem"],
@@ -9,7 +10,36 @@ config {
         granularity: "day"
    },
   },
-  uniqueKey: ["id_viagem"]
+  description: "Tabela que informa se a viagem informada está ou não válida de acordo com os parâmetros definidos.",
+  columns: {
+    data: "Data da viagem (partição).",
+    id_viagem: "Código único identificador da viagem.",
+    datetime_partida: "Horário de início da viagem.",
+    datetime_chegada: "Horário de fim da viagem.",
+    modo: "Tipo de transporte (Ônibus, Van, BRT)",
+    id_veiculo: "Código identificador do veículo (número de ordem).",
+    trip_id: "Identificador de uma viagem da tabela trips do GTFS.",
+    route_id: "Identificador de uma rota da tabela routes do GTFS.",
+    shape_id: "Identificador de um shape da tabela shapes do GTFS.",
+    servico: "Serviço realizado pelo veículo.",
+    sentido: "Sentido da linha",
+    fonte_gps: "Fonde da api do gps.",
+    quantidade_segmentos_verificados: "Quantidade de segmentos considerados no validação.",
+    quantidade_segmentos_validos: "Quantidade de segmentos com pelo menos um sinal de gps.",
+    indice_validacao: "Quantidade_segmentos_validos dividido por quantidade_segmentos_verificados.",
+    indicador_trajeto_valido: "Indica se o veículo cumpriu o trajeto (indice_validacao >= parametro_validacao).",
+    indicador_servico_planejado_gtfs: "Indica se o serviço entava planejado para o tipo dia no GTFS.",
+    indicador_servico_planejado_os: "Indica se o serviço estava planejado para a faixa horária na OS (apenas para SPPO).",
+    indicador_servico_divergente: "Indica se o serviço indicado nos dados de gps estava diferente do serviço informado na viagem.",
+    indicador_shape_invalido: "Indica se o shape existe no GTFS no feed vigente durante a data da viagem",
+    indicador_viagem_valida: "Indica se a viagem está válida ou não.",
+    parametro_validacao: "Valor mínimo do indice_validacao para que a viagem seja validada.",
+    tipo_dia: "Dia da semana - categorias: Dia Útil, Sábado, Domingo",
+    feed_version: "String que indica a versão atual do conjunto de dados GTFS.",
+    feed_start_date: "Data inicial do feed (versão).",
+    versao: "Código de controle de versão do dado (SHA Github)",
+    datetime_ultima_atualizacao: "Última atualização (GMT-3).",
+  }
 }
 
 pre_operations {
@@ -22,7 +52,8 @@ pre_operations {
       FROM ${ref("planejamento", "calendario")}
       ${when(
         incremental(),
-        `WHERE data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`
+        `where data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`,
+        `where data = ${helpers.data_inicial_gps_validacao_viagem}` 
       )}
     )
   );
@@ -43,6 +74,7 @@ with
             shape_id,
             servico,
             sentido,
+            fonte_gps,
             countif(id_segmento is not null) as quantidade_segmentos_verificados,
             countif(quantidade_gps > 0) as quantidade_segmentos_validos,
             max(indicador_servico_divergente) as indicador_servico_divergente,
@@ -59,7 +91,8 @@ with
             )
             ${when(
                 incremental(),
-                `AND data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`
+                `AND data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`,
+                `AND data = ${helpers.data_inicial_gps_validacao_viagem}` 
             )}
         group by
             data,
@@ -73,6 +106,7 @@ with
             shape_id,
             servico,
             sentido,
+            fonte_gps,
             service_ids,
             tipo_dia,
             feed_version,
@@ -91,6 +125,7 @@ with
             shape_id,
             servico,
             sentido,
+            fonte_gps,
             quantidade_segmentos_verificados,
             quantidade_segmentos_validos,
             safe_divide(
@@ -134,7 +169,8 @@ with
         from ${ref("viagem_planejada")}
         ${when(
             incremental(),
-            `WHERE data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`
+            `where data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`,
+            `where data = ${helpers.data_inicial_gps_validacao_viagem}`
         )}
         qualify
             row_number() over (
@@ -181,6 +217,7 @@ select
     shape_id,
     servico,
     sentido,
+    fonte_gps,
     quantidade_segmentos_verificados,
     quantidade_segmentos_validos,
     indice_validacao,

@@ -22,7 +22,8 @@ pre_operations {
       FROM ${ref("planejamento", "calendario")}
       ${when(
         incremental(),
-        `WHERE data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`
+        `WHERE data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`,
+        `WHERE data = date(${helpers.data_inicial_gps_validacao_viagem})`
       )}
     )
   );
@@ -48,8 +49,8 @@ with
     from ${ref("staging_viagem_informada_rioonibus")}
     ${when(
       incremental(),
-      `where data_viagem between date(${constants.date_range_start}) and date(${constants.date_range_end})
-       and data_viagem >= (SELECT MAX(data) FROM ${self()})`
+      `where data_viagem between date(${constants.date_range_start}) and date(${constants.date_range_end})`,
+      `where data_viagem = date(${helpers.data_inicial_gps_validacao_viagem})`
     )}
   ),
   staging as (
@@ -101,7 +102,8 @@ with
     from ${ref("calendario")}
     ${when(
       incremental(),
-      `where data in (SELECT DISTINCT data FROM staging)`
+      `where data in (SELECT DISTINCT data FROM staging)`,
+      `where data = date(${helpers.data_inicial_gps_validacao_viagem})`
     )}
   ),
   routes as (

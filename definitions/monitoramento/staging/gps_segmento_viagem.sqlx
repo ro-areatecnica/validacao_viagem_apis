@@ -21,7 +21,8 @@ pre_operations {
       FROM ${ref("planejamento", "calendario")}
       ${when(
         incremental(),
-        `WHERE data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`
+        `WHERE data BETWEEN DATE(${constants.date_range_start}) AND DATE(${constants.date_range_end})`,
+        `where data = ${helpers.data_inicial_gps_validacao_viagem}` 
       )}
     )
   );
@@ -34,7 +35,8 @@ with
         from ${ref("calendario")}
         ${when(
             incremental(),
-            `where data between date(${constants.date_range_start}) and date(${constants.date_range_end})`
+            `where data between date(${constants.date_range_start}) and date(${constants.date_range_end})`,
+            `where data = ${helpers.data_inicial_gps_validacao_viagem}` 
         )} 
     ),
     gps_viagem as (
@@ -51,7 +53,8 @@ with
         join calendario c using (data)
         ${when(
             incremental(),
-            `where data between date(${constants.date_range_start}) and date(${constants.date_range_end})`
+            `where data between date(${constants.date_range_start}) and date(${constants.date_range_end})`,
+            `where data = ${helpers.data_inicial_gps_validacao_viagem}` 
         )} 
     ),
     segmento as (
@@ -107,6 +110,7 @@ with
             v.shape_id,
             v.servico,
             v.sentido,
+            v.fonte_gps,
             c.service_ids,
             c.tipo_dia,
             c.feed_start_date,
@@ -115,7 +119,8 @@ with
         join calendario c using (data)
         ${when(
             incremental(),
-            `where data between date(${constants.date_range_start}) and date(${constants.date_range_end})`
+            `where data between date(${constants.date_range_start}) and date(${constants.date_range_end})`,
+            `where data = ${helpers.data_inicial_gps_validacao_viagem}` 
         )} 
     ),
     viagem_segmento as (
@@ -132,6 +137,7 @@ with
             s.id_segmento,
             s.indicador_segmento_desconsiderado,
             v.servico,
+            v.fonte_gps,
             v.sentido,
             v.service_ids,
             v.tipo_dia,
@@ -153,6 +159,7 @@ select
     id_segmento,
     v.servico,
     v.sentido,
+    v.fonte_gps,
     IFNULL(g.quantidade_gps, 0) as quantidade_gps,
     v.indicador_segmento_desconsiderado,
     s.indicador_servico_divergente,
