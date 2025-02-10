@@ -1,4 +1,4 @@
-const data_atual = new Date("2025-01-05");
+const data_atual = new Date();
 
 data_atual.setDate(data_atual.getDate() - 2);
 
