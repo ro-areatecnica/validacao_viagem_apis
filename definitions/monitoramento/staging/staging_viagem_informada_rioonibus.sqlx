@@ -5,15 +5,15 @@ config {
   tags: ["monitoramento_viagem"]
 }
 
--- pre_operations {
---   DECLARE hora_atual TIME DEFAULT ${constants.hora_atual};
--- }
+pre_operations {
+  DECLARE hora_atual TIME DEFAULT ${constants.hora_atual};
+}
 
 
 SELECT
   id_viagem,
-  -- DATETIME(DATE(data_extraction), hora_atual) AS datetime_captura,
-  DATETIME(DATE(data_extraction), TIME(0,0,0)) AS datetime_captura,    
+  DATETIME(DATE(data_extraction), hora_atual) AS datetime_captura,
+  -- DATETIME(DATE(data_extraction), TIME(0,0,0)) AS datetime_captura,    
   DATE(data_viagem) AS data_viagem,
   DATETIME(TIMESTAMP(datetime_chegada), "America/Sao_Paulo") AS datetime_chegada,
   DATETIME(TIMESTAMP(datetime_partida), "America/Sao_Paulo") AS datetime_partida,
@@ -31,8 +31,8 @@ UNION ALL
 
 SELECT
   id_viagem,
-  -- DATETIME(DATE(data_extraction), hora_atual) AS datetime_captura,
-  DATETIME(DATE(data_extraction), TIME(0,0,0)) AS datetime_captura,    
+  DATETIME(DATE(data_extraction), hora_atual) AS datetime_captura,
+  -- DATETIME(DATE(data_extraction), TIME(0,0,0)) AS datetime_captura,    
   DATE(data_viagem) AS data_viagem,
   DATETIME(TIMESTAMP(datetime_chegada), "America/Sao_Paulo") AS datetime_chegada,
   DATETIME(TIMESTAMP(datetime_partida), "America/Sao_Paulo") AS datetime_partida,
@@ -45,3 +45,22 @@ SELECT
   shape_id,
   trip_id
 FROM ${ref("sppo_viagens_zirix")}
+
+UNION ALL
+
+SELECT
+  id_viagem,
+  DATETIME(DATE(data_extraction), hora_atual) AS datetime_captura,
+  -- DATETIME(DATE(data_extraction), TIME(0,0,0)) AS datetime_captura,    
+  DATE(data_viagem) AS data_viagem,
+  DATETIME(TIMESTAMP(datetime_chegada), "America/Sao_Paulo") AS datetime_chegada,
+  DATETIME(TIMESTAMP(datetime_partida), "America/Sao_Paulo") AS datetime_partida,
+  DATETIME(TIMESTAMP(datetime_processamento), "America/Sao_Paulo") AS datetime_processamento,
+  fornecedor,
+  id_veiculo,
+  route_id,
+  sentido,
+  servico,
+  shape_id,
+  trip_id
+FROM ${ref("sppo_viagens_cittati")}
