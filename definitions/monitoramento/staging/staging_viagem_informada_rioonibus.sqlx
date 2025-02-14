@@ -5,15 +5,11 @@ config {
   tags: ["monitoramento_viagem"]
 }
 
-pre_operations {
-  DECLARE hora_atual TIME DEFAULT ${constants.hora_atual};
-}
 
 
 SELECT
   id_viagem,
-  DATETIME(DATE(data_extraction), hora_atual) AS datetime_captura,
-  -- DATETIME(DATE(data_extraction), TIME(0,0,0)) AS datetime_captura,    
+  DATETIME(DATE(data_extraction), TIME(CURRENT_DATETIME("America/Sao_Paulo"))) AS datetime_captura,
   DATE(data_viagem) AS data_viagem,
   DATETIME(TIMESTAMP(datetime_chegada), "America/Sao_Paulo") AS datetime_chegada,
   DATETIME(TIMESTAMP(datetime_partida), "America/Sao_Paulo") AS datetime_partida,
@@ -31,8 +27,7 @@ UNION ALL
 
 SELECT
   id_viagem,
-  DATETIME(DATE(data_extraction), hora_atual) AS datetime_captura,
-  -- DATETIME(DATE(data_extraction), TIME(0,0,0)) AS datetime_captura,    
+  DATETIME(DATE(data_extraction), TIME(CURRENT_DATETIME("America/Sao_Paulo"))) AS datetime_captura,
   DATE(data_viagem) AS data_viagem,
   DATETIME(TIMESTAMP(datetime_chegada), "America/Sao_Paulo") AS datetime_chegada,
   DATETIME(TIMESTAMP(datetime_partida), "America/Sao_Paulo") AS datetime_partida,
@@ -50,8 +45,7 @@ UNION ALL
 
 SELECT
   id_viagem,
-  DATETIME(DATE(data_extraction), hora_atual) AS datetime_captura,
-  -- DATETIME(DATE(data_extraction), TIME(0,0,0)) AS datetime_captura,    
+ DATETIME(DATE(data_extraction), TIME(CURRENT_DATETIME("America/Sao_Paulo"))) AS datetime_captura,
   DATE(data_viagem) AS data_viagem,
   DATETIME(TIMESTAMP(datetime_chegada), "America/Sao_Paulo") AS datetime_chegada,
   DATETIME(TIMESTAMP(datetime_partida), "America/Sao_Paulo") AS datetime_partida,
