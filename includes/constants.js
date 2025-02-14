@@ -6,9 +6,6 @@ const partitions = [];
 const parametro_validacao = 0.9;
 const qtd_dia = 2;
 const data_inicial_gps_validacao_viagem = new Date();
-const agora = new Date();
-agora.setHours(agora.getUTCHours() - 3); // Ajuste manual para UTC-3
-const hora_atual = `'${String(agora.getHours()).padStart(2, '0')}:${String(agora.getMinutes()).padStart(2, '0')}:${String(agora.getSeconds()).padStart(2, '0')}'`;
 data_inicial_gps_validacao_viagem.setDate(data_inicial_gps_validacao_viagem.getDate() - qtd_dia);
 
 const date_range_start = `'${data_inicial_gps_validacao_viagem.toISOString().split('T')[0]}T00:00:00'`;
@@ -39,6 +36,5 @@ module.exports = {
   date_range_end,
   data_inicial_gps_validacao_viagem,
   parametro_validacao,
-  partitions,
-  hora_atual
+  partitions
 };
